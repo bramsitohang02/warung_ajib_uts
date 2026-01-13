@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Untuk membatasi input hanya angka
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:http/http.dart' as http;
 
 class PaymentPage extends StatefulWidget {
   final int totalPrice;
@@ -11,126 +13,70 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  // Controller untuk input jumlah bayar
-  final TextEditingController _paymentController = TextEditingController();
-  // Variabel untuk menyimpan uang kembali
-  int _kembalian = 0;
+  late final WebViewController _controller;
+  bool _isLoading = true;
+  String? _paymentUrl;
 
   @override
   void initState() {
     super.initState();
-    // Tambahkan listener ke controller
-    // Ini akan memanggil _calculateKembalian setiap kali user mengetik
-    _paymentController.addListener(_calculateKembalian);
+    // 1. Saat halaman dibuka, langsung minta Link Pembayaran ke Server Next.js
+    _getToken();
   }
 
-  // Fungsi untuk menghitung kembalian
-  void _calculateKembalian() {
-    // Ambil teks dari input, jika kosong anggap "0"
-    String paymentText = _paymentController.text;
-    int paymentAmount = int.tryParse(paymentText) ?? 0;
+  Future<void> _getToken() async {
+    // --- GANTI KE IP ASLI ANDA ---
+    final url = Uri.parse('http://192.168.1.7:3000/api');
 
-    // Hitung kembalian
-    int calculatedKembalian = paymentAmount - widget.totalPrice;
+    try {
+      String orderId = "ORDER-${DateTime.now().millisecondsSinceEpoch}";
+      
+      final response = await http.post(
+        url,
+        // PENTING: Tambahkan Header ini agar Server Next.js paham kita kirim JSON
+        headers: {'Content-Type': 'application/json'}, 
+        body: jsonEncode({
+          "id": orderId,
+          "productName": "Total Belanja Warung Ajib",
+          "price": widget.totalPrice,
+          "quantity": 1
+        }),
+      );
 
-    // Update state agar UI berubah
-    setState(() {
-      // Jika kembalian negatif (uang kurang), tampilkan 0
-      _kembalian = (calculatedKembalian < 0) ? 0 : calculatedKembalian;
-    });
-  }
+      print("Respon Server Next.js: ${response.body}");
 
-  @override
-  void dispose() {
-    // Selalu bersihkan controller
-    _paymentController.removeListener(_calculateKembalian); // Hapus listener
-    _paymentController.dispose();
-    super.dispose();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        setState(() {
+          _paymentUrl = data['redirect_url']; 
+          _isLoading = false;
+        });
+
+        _controller = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..loadRequest(Uri.parse(_paymentUrl!));
+          
+      } else {
+        // Tampilkan pesan error dari server jika ada
+        throw Exception("Gagal: ${response.body}");
+      }
+    } catch (e) {
+      print("Error: $e");
+      // Tampilkan error di layar HP biar terlihat jelas
+      if(mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Err: $e")));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Form Pembayaran"),
-      ),
-      body: SingleChildScrollView( // Agar bisa di-scroll
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 1. Total Transaksi
-            Text(
-              "Total Transaksi:",
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 8),
-            Text(
-              "Rp. ${widget.totalPrice}",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue[700],
-              ),
-            ),
-            SizedBox(height: 30),
-
-            // 2. Input Jumlah Pembayaran
-            TextFormField(
-              controller: _paymentController,
-              // Keyboard khusus angka
-              keyboardType: TextInputType.number,
-              // Membatasi input hanya boleh angka
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
-              decoration: InputDecoration(
-                labelText: "Jumlah Pembayaran",
-                border: OutlineInputBorder(),
-                prefixText: "Rp. ",
-              ),
-              style: TextStyle(fontSize: 20),
-            ),
-            SizedBox(height: 30),
-
-            // 3. Tampilan Kembalian
-            Text(
-              "Kembali:",
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 8),
-            Text(
-              "Rp. $_kembalian",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.green[700],
-              ),
-            ),
-            SizedBox(height: 40),
-
-            // Tombol Selesai (Opsional)
-            ElevatedButton(
-              onPressed: () {
-                // Tampilkan notifikasi
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Transaksi Selesai!')),
-                );
-                
-                // Kembali ke halaman Dashboard DAN kirim sinyal 'true'
-                Navigator.pop(context, true); 
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                child: Text(
-                  "Selesai Transaksi",
-                  style: TextStyle(fontSize: 18),
-                ),
-              ),
-            )
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text("Pembayaran Midtrans")),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator()) // Loading saat minta token
+          : WebViewWidget(controller: _controller), // Tampilkan Halaman Bayar Midtrans
     );
   }
 }

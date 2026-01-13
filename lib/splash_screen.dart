@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Import kedua halaman
-import 'package:warung_ajib_uts/login_page.dart';
-import 'package:warung_ajib_uts/dashboard_page.dart';
+import 'package:project_uas/login_page.dart';
+import 'package:project_uas/dashboard_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

@@ -1,36 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:warung_ajib_uts/product_model.dart';
 
 class ProductDetailPage extends StatelessWidget {
-  final Product product;
+  // Kita terima data mentah dari API (Map), bukan Class Product lama
+  final Map<String, dynamic> product;
+  final String baseUrl; // Butuh URL untuk load gambar
 
-  const ProductDetailPage({super.key, required this.product});
+  const ProductDetailPage({
+    super.key, 
+    required this.product,
+    required this.baseUrl
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Siapkan Data agar tidak error null
+    String nama = product['nmbrg'] ?? 'Tanpa Nama';
+    String deskripsi = product['deskripsi'] ?? 'Tidak ada deskripsi.';
+    String harga = product['hrgjual']?.toString() ?? '0';
+    String gambar = product['gambar'] ?? '';
+    String imageUrl = "$baseUrl/gambar/$gambar";
+
     return Scaffold(
-      // Mengubah warna AppBar agar sesuai tema
       appBar: AppBar(
-        title: Text(product.name),
+        title: Text(nama),
+        backgroundColor: Colors.orange[800], // Sesuaikan tema Warung Ajib
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- BAGIAN FOTO PRODUK (BARU) ---
+            // --- FOTO PRODUK (NETWORK IMAGE) ---
             Container(
-              height: 250, // Tinggi gambar
+              height: 300, // Gambar besar
               width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[200], // Warna background jika gambar transparan
-              ),
-              child: Image.asset(
-                product.imagePath,
-                fit: BoxFit.cover, // Agar gambar memenuhi kotak
+              decoration: BoxDecoration(color: Colors.grey[200]),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                    children: const [
                       Icon(Icons.broken_image, size: 60, color: Colors.grey),
                       Text("Gambar tidak ditemukan"),
                     ],
@@ -38,60 +49,72 @@ class ProductDetailPage extends StatelessWidget {
                 },
               ),
             ),
-            // --- AKHIR BAGIAN FOTO ---
-
+            
+            // --- DETAIL TEKS ---
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nama Produk
-                  Text(
-                    product.name,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  // Nama & Harga
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nama,
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Text(
+                        "Rp $harga",
+                        style: const TextStyle(
+                          fontSize: 20, 
+                          fontWeight: FontWeight.bold, 
+                          color: Colors.orange
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 20),
+                  const Divider(thickness: 2), 
+                  const SizedBox(height: 10),
                   
-                  // Harga Produk
-                  Text(
-                    "Harga: Rp. ${product.price}",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.secondary, // Warna oranye/kuning
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Divider(), // Garis pemisah
-                  SizedBox(height: 10),
-                  
-                  // Judul Deskripsi
-                  Text(
+                  // Deskripsi
+                  const Text(
                     "Deskripsi Produk:",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 8),
-                  
-                  // Isi Deskripsi
+                  const SizedBox(height: 8),
                   Text(
-                    product.description,
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 1.5, // Jarak antar baris agar enak dibaca
-                    ),
+                    deskripsi,
+                    style: const TextStyle(fontSize: 16, height: 1.5),
                     textAlign: TextAlign.justify,
                   ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+      // --- TOMBOL BELI DI BAWAH (OPSIONAL TAPI BAGUS) ---
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(blurRadius: 5, color: Colors.grey.withOpacity(0.5))]
+        ),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange[800],
+            padding: const EdgeInsets.symmetric(vertical: 15)
+          ),
+          onPressed: () {
+            // Kembali ke dashboard dengan sinyal 'beli'
+            Navigator.pop(context, true); 
+          },
+          child: const Text("BELI SEKARANG", style: TextStyle(color: Colors.white, fontSize: 16)),
         ),
       ),
     );

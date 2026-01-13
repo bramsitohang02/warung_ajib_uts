@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 // Pastikan import ini sesuai dengan nama project Anda
-import 'package:warung_ajib_uts/splash_screen.dart';
+import 'package:project_uas/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());

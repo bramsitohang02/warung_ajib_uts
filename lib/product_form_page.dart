@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; // Wajib ada untuk galeri
-import 'package:warung_ajib_uts/product_model.dart';
-import 'package:warung_ajib_uts/product_repository.dart';
+import 'package:project_uas/product_model.dart';
+import 'package:project_uas/product_repository.dart';
 
 class ProductFormPage extends StatefulWidget {
   final Product? product;

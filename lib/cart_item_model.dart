@@ -1,4 +1,4 @@
-import 'package:warung_ajib_uts/product_model.dart';
+import 'package:project_uas/product_model.dart';
 
 class CartItem {
   final Product product;

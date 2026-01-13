@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'product_model.dart';
 
 class ProductRepository {
-  final String _baseUrl = 'http://10.0.2.2/warung_api'; 
+  final String _baseUrl = 'http://10.0.2.2/warung_api_pbb13'; 
 
   Future<List<Product>> getProducts() async {
     try {
