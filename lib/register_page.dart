@@ -1,106 +1,129 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:project_uas/login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageSate();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageSate extends State<RegisterPage> {
-  // Controller untuk mengambil data dari text field
+class _RegisterPageState extends State<RegisterPage> {
+  // Controller Input
   final TextEditingController _namaController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _telpController = TextEditingController();
 
-  // Fungsi untuk simpan data registrasi
-  void _register() async {
-    // 1. Dapatkan instance SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
+  bool _isLoading = false;
 
-    // 2. Simpan data
-    // Kita simpan semua data, termasuk nama, siapa tahu diperlukan
-    // untuk halaman "Update User" nanti.
-    prefs.setString('namaLengkap', _namaController.text);
-    prefs.setString('username', _usernameController.text);
-    prefs.setString('password', _passwordController.text); // (Dalam aplikasi nyata, password harus di-hash!)
+  // Pastikan IP Address Sesuai (192.168.1.1) & folder warung_api_uas
+  final String _baseUrl = 'https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas';
 
-    // 3. Tampilkan notifikasi
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Registrasi Berhasil! Silakan Login.')),
-    );
+  Future<void> _register() async {
+    if (_namaController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Nama, Email, dan Password wajib diisi!"))
+      );
+      return;
+    }
 
-    // 4. Kembali ke halaman login
-    Navigator.pop(context);
-  }
+    setState(() => _isLoading = true);
 
-  // Fungsi untuk tombol reset
-  void _reset() {
-    _namaController.clear();
-    _usernameController.clear();
-    _passwordController.clear();
-  }
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/register.php'),
+        body: {
+          "nama": _namaController.text,
+          "email": _emailController.text,
+          "password": _passwordController.text,
+          "telp": _telpController.text,
+        },
+      );
 
-  @override
-  void dispose() {
-    // Bersihkan controller saat widget tidak digunakan
-    _namaController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+      final data = jsonDecode(response.body);
+
+      if (data['success'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Registrasi Berhasil! Silakan Login."), backgroundColor: Colors.green)
+        );
+        // Pindah ke Login Page setelah sukses
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const LoginPage())
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal: ${data['message']}"))
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e"))
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Registrasi Login"),
-        // Tombol kembali otomatis ditambahkan oleh AppBar
-      ),
-      body: SingleChildScrollView( // Agar bisa di-scroll jika layar kecil
-        padding: const EdgeInsets.all(20.0),
+      appBar: AppBar(title: const Text("Daftar Akun Baru")),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Icon(Icons.person_add, size: 80, color: Colors.blue),
+            const SizedBox(height: 20),
+            
             TextFormField(
               controller: _namaController,
-              decoration: InputDecoration(
-                labelText: "Nama Lengkap",
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: "Nama Lengkap", border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 15),
+            
             TextFormField(
-              controller: _usernameController,
-              decoration: InputDecoration(
-                labelText: "Username",
-                border: OutlineInputBorder(),
-              ),
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 15),
+            
+            TextFormField(
+              controller: _telpController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: "No. Telepon (Opsional)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone)),
+            ),
+            const SizedBox(height: 15),
+            
             TextFormField(
               controller: _passwordController,
-              obscureText: true, // Untuk menyembunyikan password
-              decoration: InputDecoration(
-                labelText: "Password",
-                border: OutlineInputBorder(),
+              obscureText: true,
+              decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)),
+            ),
+            const SizedBox(height: 25),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _register,
+                child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("DAFTAR SEKARANG", style: TextStyle(fontSize: 16)),
               ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _register,
-                  child: Text("Submit"),
-                ),
-                OutlinedButton( // Menggunakan OutlinedButton untuk "Reset"
-                  onPressed: _reset,
-                  child: Text("Reset"),
-                ),
-              ],
-            ),
+
+            TextButton(
+              onPressed: () => Navigator.pop(context), 
+              child: const Text("Sudah punya akun? Login")
+            )
           ],
         ),
       ),

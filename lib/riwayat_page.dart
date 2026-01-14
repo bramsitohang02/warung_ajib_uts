@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart'; // Plugin Kamera/Galeri
+import 'package:image_picker/image_picker.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; // WAJIB: Import ini agar bisa baca sesi login
 
 class RiwayatPage extends StatefulWidget {
   const RiwayatPage({super.key});
@@ -15,8 +16,9 @@ class _RiwayatPageState extends State<RiwayatPage> {
   List _history = [];
   bool _isLoading = true;
   File? _selectedImage; 
-  // Pastikan IP ini sesuai dengan laptop Anda saat ini
-  final String _baseUrl = 'http://192.168.1.13/warung_api_uas';
+  
+  // Pastikan IP Address Sesuai
+  final String _baseUrl = 'https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas';
 
   @override
   void initState() {
@@ -24,9 +26,24 @@ class _RiwayatPageState extends State<RiwayatPage> {
     _fetchHistory();
   }
 
+  // --- PERBAIKAN LOGIKA DI SINI ---
   Future<void> _fetchHistory() async {
+    // 1. Ambil ID User yang sedang login dari Shared Preferences
+    final prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString('id_user');
+
+    // Jika tidak ada sesi login, stop
+    if (userId == null) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error: Sesi login tidak ditemukan"))
+      );
+      return;
+    }
+
     try {
-      final response = await http.get(Uri.parse('$_baseUrl/history.php?id_user=1'));
+      // 2. Panggil API dengan ID yang dinamis (bukan id_user=1 lagi)
+      final response = await http.get(Uri.parse('$_baseUrl/history.php?id_user=$userId'));
       
       if (response.statusCode == 200) {
         setState(() {
@@ -36,6 +53,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
       }
     } catch (e) {
       print("Error: $e");
+      setState(() => _isLoading = false);
     }
   }
 
@@ -65,7 +83,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil Upload!")));
-        _fetchHistory(); 
+        _fetchHistory(); // Refresh data
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Upload")));
       }
@@ -77,7 +95,11 @@ class _RiwayatPageState extends State<RiwayatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Riwayat Belanja")),
+      appBar: AppBar(
+        title: const Text("Riwayat Belanja"),
+        backgroundColor: Colors.orange[800], // Sesuaikan tema
+        foregroundColor: Colors.white,
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _history.isEmpty
@@ -92,6 +114,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
 
                     return Card(
                       margin: const EdgeInsets.all(10),
+                      elevation: 3,
                       child: Padding(
                         padding: const EdgeInsets.all(15.0),
                         child: Column(
@@ -105,10 +128,11 @@ class _RiwayatPageState extends State<RiwayatPage> {
                               ],
                             ),
                             const Divider(),
-                            Text("Total: Rp ${item['total_bayar']}"),
+                            Text("Total: Rp ${item['total_bayar']}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             Text("Metode: $metode"),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: 10),
                             
+                            // Badge Status
                             Row(
                               children: [
                                 const Text("Status: "),
@@ -118,13 +142,17 @@ class _RiwayatPageState extends State<RiwayatPage> {
                                     color: status == 'pending' ? Colors.orange : Colors.green,
                                     borderRadius: BorderRadius.circular(5)
                                   ),
-                                  child: Text(status, style: const TextStyle(color: Colors.white)),
+                                  child: Text(
+                                    status.toUpperCase(), 
+                                    style: const TextStyle(color: Colors.white, fontSize: 12)
+                                  ),
                                 ),
                               ],
                             ),
 
                             const SizedBox(height: 15),
 
+                            // Tombol Upload (Hanya jika Transfer Manual & Belum ada bukti)
                             if (metode == 'manual' && (bukti == null || bukti.isEmpty))
                               SizedBox(
                                 width: double.infinity,
@@ -132,21 +160,25 @@ class _RiwayatPageState extends State<RiwayatPage> {
                                   onPressed: () => _pickImage(item['id_jual']),
                                   icon: const Icon(Icons.upload_file),
                                   label: const Text("UPLOAD BUKTI TRANSFER"),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[800], foregroundColor: Colors.white),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], foregroundColor: Colors.white),
                                 ),
                               ),
                             
+                            // Info jika sudah upload
                             if (bukti != null && bukti.isNotEmpty)
                               Container(
-                                // --- PERBAIKAN DI SINI ---
-                                margin: const EdgeInsets.only(top: 10), // Ganti .top jadi .only(top: ...)
+                                margin: const EdgeInsets.only(top: 10),
                                 padding: const EdgeInsets.all(10),
-                                color: Colors.green[50],
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(color: Colors.green)
+                                ),
                                 child: Row(
                                   children: const [
                                     Icon(Icons.check_circle, color: Colors.green),
                                     SizedBox(width: 10),
-                                    Text("Bukti sudah dikirim"),
+                                    Text("Bukti pembayaran diterima"),
                                   ],
                                 ),
                               )

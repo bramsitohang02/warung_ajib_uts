@@ -14,8 +14,8 @@ class MyApp extends StatelessWidget {
     // --- PERUBAHAN WARNA DI SINI ---
     
     // 1. Tentukan palet warna
-    final Color colorUtama = Color(0xFFE45518); // <-- Warna baru Anda
-    final Color colorAksen = Color(0xFFFFC107); // <-- Warna aksen baru (Kuning/Emas)
+    final Color colorUtama = Color(0xFFE45518); 
+    final Color colorAksen = Color(0xFFFFC107); 
 
     // --- AKHIR PERUBAHAN WARNA ---
 

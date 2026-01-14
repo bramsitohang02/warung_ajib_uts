@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:project_uas/dashboard_page.dart';        // Halaman User
-import 'package:project_uas/admin/admin_dashboard_page.dart'; // Halaman Admin
-import 'package:project_uas/register_page.dart';       // Halaman Register
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:project_uas/dashboard_page.dart';
+import 'package:project_uas/admin/admin_dashboard_page.dart';
+import 'package:project_uas/register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -13,13 +14,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Controller (Gunakan Email karena database butuh email)
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
   bool _isLoading = false; 
 
-  // Fungsi Login Logika UAS (Admin vs User)
   Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -31,9 +30,9 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // UPDATE IP DI SINI (192.168.1.13)
+      // Pastikan IP Address Sesuai
       final response = await http.post(
-        Uri.parse("http://192.168.1.13/warung_api_uas/login.php"),
+        Uri.parse("https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas/login.php"),
         body: {
           "email": _emailController.text,
           "password": _passwordController.text,
@@ -44,8 +43,16 @@ class _LoginPageState extends State<LoginPage> {
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
+          String id = data['id'];
           String nama = data['nama'];
           String role = data['role'] ?? 'user';
+
+          // --- SIMPAN SESI LOGIN (PENTING) ---
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('id_user', id); 
+          await prefs.setString('nama_user', nama);
+          await prefs.setString('role_user', role);
+          await prefs.setBool('is_login', true);
 
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -55,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
 
-          // Pindah Halaman sesuai Role
+          // Pindah Halaman
           if (role == 'admin') {
             Navigator.pushReplacement(
               context,
@@ -73,9 +80,7 @@ class _LoginPageState extends State<LoginPage> {
             SnackBar(content: Text("Gagal: ${data['message']}")),
           );
         }
-      } else {
-        throw Exception("Error Server: ${response.statusCode}");
-      }
+      } 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,62 +94,53 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Login User"), // Judul simpel seperti permintaan
-      ),
+      appBar: AppBar(title: const Text("Login User")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 60),
-            const Text(
-              "Silakan Login",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            // --- PERUBAHAN NOMOR 1: GANTI ICON JADI LOGO IMAGE ---
+            // const Icon(Icons.storefront, size: 80, color: Colors.orange), // <--- Kode Lama (Dihapus)
+            Image.asset(
+              'assets/images/logo_icon.png', // <--- Kode Baru (Pastikan nama file benar)
+              height: 100, // Sesuaikan ukuran
+              width: 100,
             ),
+            
+            const SizedBox(height: 20),
+            const Text("WARUNG AJIB", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 30),
             
-            // Input Email (Database butuh Email, bukan Username)
             TextFormField(
               controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: "Email", 
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 15),
             
-            // Input Password
             TextFormField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "Password",
-                border: OutlineInputBorder(),
+              decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 25),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _login,
+                child: _isLoading 
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("MASUK"),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 15),
             
-            // Tombol Login
-            ElevatedButton(
-              onPressed: _isLoading ? null : _login,
-              child: _isLoading 
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text("Login"),
-            ),
-            const SizedBox(height: 12),
-            
-            // Tombol Register
             TextButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RegisterPage()),
-                );
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterPage()));
               },
-              child: const Text("Belum punya akun? Registrasi"),
+              child: const Text("Belum punya akun? Daftar disini"),
             ),
           ],
         ),
