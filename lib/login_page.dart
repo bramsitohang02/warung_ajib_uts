@@ -6,6 +6,10 @@ import 'package:project_uas/dashboard_page.dart';
 import 'package:project_uas/admin/admin_dashboard_page.dart';
 import 'package:project_uas/register_page.dart';
 
+// --- (KITA MATIKAN IMPORT GOOGLE SEMENTARA AGAR TIDAK ERROR) ---
+// import 'package:google_sign_in/google_sign_in.dart' as google_lib; 
+// import 'package:firebase_auth/firebase_auth.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -19,20 +23,51 @@ class _LoginPageState extends State<LoginPage> {
   
   bool _isLoading = false; 
 
+  // --- LINK NGROK STATIC ANDA ---
+  final String _baseUrl = 'https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas';
+
+  // --- FUNGSI LOGIN GOOGLE (DUMMY / SEMENTARA) ---
+  Future<void> _handleGoogleSignIn() async {
+    // Tampilkan pesan bahwa fitur sedang maintenance
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Fitur Login Google sedang dalam pemeliharaan sistem (Maintenance). Silakan gunakan Login Email."),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 3),
+      )
+    );
+
+    /* --- KODE ASLI DISIMPAN DI SINI (UNCOMMENT NANTI SETELAH UAS) ---
+    setState(() => _isLoading = true);
+    try {
+      final google_lib.GoogleSignIn googleSignIn = google_lib.GoogleSignIn();
+      final google_lib.GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final google_lib.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // ... logika auth lainnya ...
+    } catch (e) {
+      // ... error handling ...
+    }
+    */
+  }
+
+  // --- LOGIN BIASA (MANUAL) ---
   Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email dan Password harus diisi!")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email dan Password harus diisi!")));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Pastikan IP Address Sesuai
       final response = await http.post(
-        Uri.parse("https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas/login.php"),
+        Uri.parse("$_baseUrl/login.php"),
         body: {
           "email": _emailController.text,
           "password": _passwordController.text,
@@ -47,7 +82,6 @@ class _LoginPageState extends State<LoginPage> {
           String nama = data['nama'];
           String role = data['role'] ?? 'user';
 
-          // --- SIMPAN SESI LOGIN (PENTING) ---
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('id_user', id); 
           await prefs.setString('nama_user', nama);
@@ -55,37 +89,20 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.setBool('is_login', true);
 
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Login Sukses! Halo $nama"),
-              backgroundColor: role == 'admin' ? Colors.red : Colors.green,
-            ),
-          );
-
-          // Pindah Halaman
+          
           if (role == 'admin') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminDashboardPage()),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminDashboardPage()));
           } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const DashboardPage()),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const DashboardPage()));
           }
         } else {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Gagal: ${data['message']}")),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: ${data['message']}")));
         }
       } 
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error Koneksi: $e")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error Koneksi: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -99,11 +116,9 @@ class _LoginPageState extends State<LoginPage> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // --- PERUBAHAN NOMOR 1: GANTI ICON JADI LOGO IMAGE ---
-            // const Icon(Icons.storefront, size: 80, color: Colors.orange), // <--- Kode Lama (Dihapus)
             Image.asset(
-              'assets/images/logo_icon.png', // <--- Kode Baru (Pastikan nama file benar)
-              height: 100, // Sesuaikan ukuran
+              'assets/images/logo_icon.png', 
+              height: 100, 
               width: 100,
             ),
             
@@ -124,6 +139,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 25),
             
+            // TOMBOL MASUK BIASA
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -132,6 +148,21 @@ class _LoginPageState extends State<LoginPage> {
                 child: _isLoading 
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text("MASUK"),
+              ),
+            ),
+            const SizedBox(height: 15),
+            
+            // --- TOMBOL GOOGLE (TETAP ADA TAPI MAINTENANCE) ---
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: _handleGoogleSignIn, // Memanggil fungsi dummy
+                icon: Image.asset('assets/images/google_logo.png', height: 24), 
+                label: const Text("Masuk dengan Google"),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.grey),
+                ),
               ),
             ),
             const SizedBox(height: 15),

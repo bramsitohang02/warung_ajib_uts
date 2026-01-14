@@ -3,7 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // WAJIB: Import ini agar bisa baca sesi login
+import 'package:shared_preferences/shared_preferences.dart';
+
+// --- IMPORT UNTUK PDF (Sama seperti Checkout) ---
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:intl/intl.dart';
 
 class RiwayatPage extends StatefulWidget {
   const RiwayatPage({super.key});
@@ -17,7 +23,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
   bool _isLoading = true;
   File? _selectedImage; 
   
-  // Pastikan IP Address Sesuai
+  // Link Ngrok Static Anda (Update jika perlu)
   final String _baseUrl = 'https://vesta-subcomplete-melonie.ngrok-free.dev/warung_api_uas';
 
   @override
@@ -26,25 +32,17 @@ class _RiwayatPageState extends State<RiwayatPage> {
     _fetchHistory();
   }
 
-  // --- PERBAIKAN LOGIKA DI SINI ---
   Future<void> _fetchHistory() async {
-    // 1. Ambil ID User yang sedang login dari Shared Preferences
     final prefs = await SharedPreferences.getInstance();
     String? userId = prefs.getString('id_user');
 
-    // Jika tidak ada sesi login, stop
     if (userId == null) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error: Sesi login tidak ditemukan"))
-      );
       return;
     }
 
     try {
-      // 2. Panggil API dengan ID yang dinamis (bukan id_user=1 lagi)
       final response = await http.get(Uri.parse('$_baseUrl/history.php?id_user=$userId'));
-      
       if (response.statusCode == 200) {
         setState(() {
           _history = jsonDecode(response.body);
@@ -57,33 +55,93 @@ class _RiwayatPageState extends State<RiwayatPage> {
     }
   }
 
+  // --- LOGIKA CETAK NOTA (BARU) ---
+  Future<void> _fetchAndPrintNota(String idJual, String totalBayarStr) async {
+    // 1. Ambil Detail Barang dari Server
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Menyiapkan Nota...")));
+      
+      final response = await http.get(Uri.parse('$_baseUrl/get_detail.php?id_jual=$idJual'));
+      final List items = jsonDecode(response.body);
+
+      // 2. Generate PDF
+      final doc = pw.Document();
+      final currency = NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+      
+      // Konversi total bayar ke int
+      int grandTotal = int.tryParse(totalBayarStr) ?? 0;
+      String tanggal = DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now());
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.roll80, 
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text("WARUNG AJIB", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+                pw.Text("REPRINT NOTA", style: const pw.TextStyle(fontSize: 10)),
+                pw.Divider(),
+                pw.Text("NOTA PEMBELIAN", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.Text("No: #$idJual"),
+                pw.Text(tanggal),
+                pw.Divider(),
+                
+                // List Barang dari Database
+                ...items.map((item) {
+                  int harga = int.tryParse(item['harga'].toString()) ?? 0;
+                  return pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Expanded(child: pw.Text(item['nm_brg'], style: const pw.TextStyle(fontSize: 10))),
+                      pw.Text(currency.format(harga), style: const pw.TextStyle(fontSize: 10)),
+                    ]
+                  );
+                }).toList(),
+                
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("TOTAL BAYAR:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.Text(currency.format(grandTotal), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ]
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text("Terima Kasih!", style: pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic)),
+              ],
+            );
+          },
+        ),
+      );
+
+      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => doc.save());
+
+    } catch (e) {
+      print("Gagal cetak: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal cetak: $e")));
+    }
+  }
+
   Future<void> _pickImage(String idJual) async {
     final returnedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
-
     if (returnedImage != null) {
-      setState(() {
-        _selectedImage = File(returnedImage.path);
-      });
+      setState(() => _selectedImage = File(returnedImage.path));
       _uploadBukti(idJual); 
     }
   }
 
   Future<void> _uploadBukti(String idJual) async {
     if (_selectedImage == null) return;
-
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sedang mengupload...")));
-
     try {
       var request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/upload_bukti.php'));
-      
       request.fields['id_jual'] = idJual;
       request.files.add(await http.MultipartFile.fromPath('image', _selectedImage!.path));
-
       var response = await request.send();
-
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil Upload!")));
-        _fetchHistory(); // Refresh data
+        _fetchHistory(); 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal Upload")));
       }
@@ -95,11 +153,7 @@ class _RiwayatPageState extends State<RiwayatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Riwayat Belanja"),
-        backgroundColor: Colors.orange[800], // Sesuaikan tema
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text("Riwayat Belanja")),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _history.isEmpty
@@ -111,6 +165,8 @@ class _RiwayatPageState extends State<RiwayatPage> {
                     String status = item['status'];
                     String metode = item['metode'];
                     String? bukti = item['bukti_bayar'];
+                    String idJual = item['id_jual'].toString();
+                    String total = item['total_bayar'].toString();
 
                     return Card(
                       margin: const EdgeInsets.all(10),
@@ -123,12 +179,19 @@ class _RiwayatPageState extends State<RiwayatPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text("Order #${item['id_jual']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text(item['tgl_jual'], style: const TextStyle(color: Colors.grey)),
+                                Text("Order #$idJual", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                
+                                // --- TOMBOL PRINT (POJOK KANAN ATAS) ---
+                                IconButton(
+                                  icon: const Icon(Icons.print, color: Colors.blue),
+                                  onPressed: () => _fetchAndPrintNota(idJual, total),
+                                  tooltip: "Cetak Nota",
+                                ),
                               ],
                             ),
+                            Text(item['tgl_jual'], style: const TextStyle(color: Colors.grey)),
                             const Divider(),
-                            Text("Total: Rp ${item['total_bayar']}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text("Total: Rp $total", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             Text("Metode: $metode"),
                             const SizedBox(height: 10),
                             
@@ -149,7 +212,6 @@ class _RiwayatPageState extends State<RiwayatPage> {
                                 ),
                               ],
                             ),
-
                             const SizedBox(height: 15),
 
                             // Tombol Upload (Hanya jika Transfer Manual & Belum ada bukti)
@@ -157,31 +219,12 @@ class _RiwayatPageState extends State<RiwayatPage> {
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: () => _pickImage(item['id_jual']),
+                                  onPressed: () => _pickImage(idJual),
                                   icon: const Icon(Icons.upload_file),
                                   label: const Text("UPLOAD BUKTI TRANSFER"),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], foregroundColor: Colors.white),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[800], foregroundColor: Colors.white),
                                 ),
                               ),
-                            
-                            // Info jika sudah upload
-                            if (bukti != null && bukti.isNotEmpty)
-                              Container(
-                                margin: const EdgeInsets.only(top: 10),
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[50],
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(color: Colors.green)
-                                ),
-                                child: Row(
-                                  children: const [
-                                    Icon(Icons.check_circle, color: Colors.green),
-                                    SizedBox(width: 10),
-                                    Text("Bukti pembayaran diterima"),
-                                  ],
-                                ),
-                              )
                           ],
                         ),
                       ),
